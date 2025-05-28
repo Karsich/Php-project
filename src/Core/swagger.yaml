@@ -1,0 +1,223 @@
+openapi: 3.0.0
+info:
+  title: Forum API
+  version: 1.0.0
+  description: API документация для форума
+
+servers:
+  - url: http://localhost:8000
+    description: Основной сервер
+  - url: http://localhost:8001
+    description: Auth сервер
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+    
+    Topic:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        author_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        author_id:
+          type: integer
+        topic_id:
+          type: integer
+        parent_post_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /register:
+    post:
+      tags:
+        - Auth
+      summary: Регистрация нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешная регистрация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: Вход в систему
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /topics:
+    get:
+      tags:
+        - Topics
+      summary: Получить список тем
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Номер страницы
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          description: Количество тем на странице
+      responses:
+        '200':
+          description: Список тем
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Topic'
+
+    post:
+      tags:
+        - Topics
+      summary: Создать новую тему
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Тема создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+
+  /topics/{topicId}/posts:
+    get:
+      tags:
+        - Posts
+      summary: Получить посты темы
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Список постов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Post'
+
+    post:
+      tags:
+        - Posts
+      summary: Создать пост в теме
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Пост создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post' 

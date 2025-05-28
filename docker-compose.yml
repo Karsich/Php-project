@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # Main Application
+  app:
+    build:
+      context: .
+      dockerfile: src/Core/Dockerfile
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+      - redis
+      - auth
+    environment:
+      - DB_HOST=db
+      - DB_NAME=forum
+      - DB_USER=postgres
+      - DB_PASS=secret
+      - REDIS_HOST=redis
+      - APP_URL=http://localhost:8000
+      - AUTH_SERVICE_URL=http://auth:8001
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USERNAME=null
+      - SMTP_PASSWORD=null
+      - MAIL_FROM_ADDRESS=forum@example.com
+      - MAIL_FROM_NAME=Forum
+
+  # Auth Service
+  auth:
+    build:
+      context: .
+      dockerfile: docker/auth/Dockerfile
+    volumes:
+      - ./src/Auth:/var/www/html
+    ports:
+      - "8001:8001"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=forum
+      - DB_USER=postgres
+      - DB_PASSWORD=secret
+      - JWT_SECRET=your_jwt_secret_key
+    depends_on:
+      - db
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ./src/Frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src/Frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_AUTH_URL=http://localhost:8001
+    depends_on:
+      - app
+      - auth
+
+  # Swagger UI
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - SWAGGER_JSON=/swagger/swagger.yaml
+    volumes:
+      - ./src/Core/swagger.yaml:/swagger/swagger.yaml
+    depends_on:
+      - app
+      - auth
+
+  # Nginx Web Server  
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./src:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+      - auth
+      - db
+
+  # PostgreSQL Database
+  db:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=forum
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis for Caching
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # MailHog for Email Testing
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  postgres_data: 
