@@ -130,7 +130,15 @@ try {
 
         if (preg_match('#^/posts/(\d+)/reaction$#', $path, $matches)) {
             header('Content-Type: application/json');
-            $post->toggleReaction($matches[1]);
+            if ($method === 'GET' || $method === 'POST') {
+                $post->toggleReaction($matches[1]);
+                exit;
+            }
+            http_response_code(405);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Method not allowed'
+            ]);
             exit;
         }
 

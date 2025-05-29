@@ -108,13 +108,36 @@ class TopicController
             return;
         }
 
+        $currentUserId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : 0;
+        
         $posts = $this->db->query("
-            SELECT p.*, u.username 
+            WITH reaction_counts AS (
+                SELECT 
+                    post_id,
+                    COUNT(*) as count
+                FROM post_reactions
+                GROUP BY post_id
+            )
+            SELECT 
+                p.*,
+                u.username,
+                COALESCE(rc.count, 0) as reaction_count,
+                EXISTS (
+                    SELECT 1 
+                    FROM post_reactions pr 
+                    WHERE pr.post_id = p.id 
+                    AND pr.user_id = ?
+                ) as has_user_reaction,
+                rp.content as reply_to_content,
+                ru.username as reply_to_username
             FROM posts p 
             JOIN users_view u ON p.author_id = u.id 
+            LEFT JOIN reaction_counts rc ON rc.post_id = p.id
+            LEFT JOIN posts rp ON p.reply_to_id = rp.id
+            LEFT JOIN users_view ru ON rp.author_id = ru.id
             WHERE p.topic_id = ? 
             ORDER BY p.created_at ASC
-        ", [$id]);
+        ", [$currentUserId, $id]);
 
         include __DIR__ . '/../Views/topics/show.php';
     }

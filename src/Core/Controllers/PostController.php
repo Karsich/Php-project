@@ -192,9 +192,69 @@ class PostController
     {
         error_log("toggleReaction controller called with id: $id");
         error_log("Session data: " . json_encode($_SESSION));
+        error_log("Request method: " . $_SERVER['REQUEST_METHOD']);
+        error_log("Content type: " . ($_SERVER['CONTENT_TYPE'] ?? 'not set'));
         
+        $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+        
+        // Если это GET-запрос, возвращаем текущее состояние реакции
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            try {
+                // Проверяем существование поста
+                $post = $this->db->query("
+                    SELECT p.*, t.is_closed 
+                    FROM posts p 
+                    JOIN topics t ON p.topic_id = t.id 
+                    WHERE p.id = ? AND NOT p.is_deleted
+                ", [$id]);
+
+                if (empty($post)) {
+                    http_response_code(404);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Пост не найден или был удален'
+                    ]);
+                    exit;
+                }
+
+                // Получаем количество реакций и статус для текущего пользователя
+                $result = $this->db->query("
+                    WITH reaction_data AS (
+                        SELECT COUNT(*) as total_count
+                        FROM post_reactions
+                        WHERE post_id = ?
+                    )
+                    SELECT 
+                        rd.total_count as reaction_count,
+                        EXISTS (
+                            SELECT 1 
+                            FROM post_reactions 
+                            WHERE post_id = ? AND user_id = ?
+                        ) as has_user_reaction
+                    FROM reaction_data rd
+                ", [$id, $id, $userId]);
+
+                echo json_encode([
+                    'success' => true,
+                    'reaction_count' => (int)$result[0]['reaction_count'],
+                    'has_user_reaction' => (bool)$result[0]['has_user_reaction']
+                ]);
+                exit;
+            } catch (\Exception $e) {
+                error_log("Error getting reaction status: " . $e->getMessage());
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Ошибка при получении статуса реакции'
+                ]);
+                exit;
+            }
+        }
+
+        // Для POST-запросов проверяем авторизацию
         if (!isset($_SESSION['user'])) {
             error_log("User not authenticated");
+            http_response_code(401);
             echo json_encode([
                 'success' => false,
                 'error' => 'Для добавления реакции необходимо войти в систему'
@@ -202,10 +262,12 @@ class PostController
             exit;
         }
 
+        error_log("Authenticated user ID: " . $_SESSION['user']['id']);
         error_log("Calling PostService toggleReaction");
         $result = $this->postService->toggleReaction($id, $_SESSION['user']['id']);
         error_log("PostService result: " . json_encode($result));
         
+        http_response_code($result['success'] ? 200 : 400);
         echo json_encode($result);
         exit;
     }

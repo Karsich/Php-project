@@ -15,36 +15,65 @@ class PostService
 
     public function getPosts($topicId, $page = 1, $limit = 10)
     {
+        error_log("Getting posts for topic: $topicId, page: $page, limit: $limit");
+        error_log("Current user ID: " . (isset($_SESSION['user']) ? $_SESSION['user']['id'] : 'not logged in'));
+        
         $offset = ($page - 1) * $limit;
         
-        $posts = $this->db->query("
+        $sql = "
+            WITH reaction_counts AS (
+                SELECT 
+                    post_id,
+                    COUNT(*) as count
+                FROM post_reactions
+                GROUP BY post_id
+            ),
+            post_data AS (
+                SELECT 
+                    p.*,
+                    u.username,
+                    COALESCE(rc.count, 0) as reaction_count,
+                    EXISTS (
+                        SELECT 1 
+                        FROM post_reactions pr 
+                        WHERE pr.post_id = p.id 
+                        AND pr.user_id = ?
+                    ) as has_user_reaction,
+                    CASE 
+                        WHEN p.reply_to_id IS NOT NULL THEN (
+                            SELECT row_to_json(r) 
+                            FROM (
+                                SELECT 
+                                    CASE WHEN p2.is_deleted THEN NULL ELSE p2.content END as content,
+                                    u2.username as username,
+                                    p2.id as reply_to_id
+                                FROM posts p2 
+                                JOIN users_view u2 ON p2.author_id = u2.id 
+                                WHERE p2.id = p.reply_to_id
+                            ) r
+                        )
+                        ELSE NULL
+                    END as reply_data
+                FROM posts p 
+                JOIN users_view u ON p.author_id = u.id 
+                LEFT JOIN reaction_counts rc ON rc.post_id = p.id
+                WHERE p.topic_id = ? AND NOT p.is_deleted
+            )
             SELECT 
-                p.*, 
-                u.username,
-                COALESCE((SELECT COUNT(*) FROM post_reactions pr WHERE pr.post_id = p.id), 0) as reaction_count,
-                CASE WHEN EXISTS (SELECT 1 FROM post_reactions pr WHERE pr.post_id = p.id AND pr.user_id = ?) THEN true ELSE false END as has_user_reaction,
-                CASE 
-                    WHEN p.reply_to_id IS NOT NULL THEN (
-                        SELECT row_to_json(r) 
-                        FROM (
-                            SELECT 
-                                CASE WHEN p2.is_deleted THEN NULL ELSE p2.content END as content,
-                                u2.username as username,
-                                p2.id as reply_to_id
-                            FROM posts p2 
-                            JOIN users_view u2 ON p2.author_id = u2.id 
-                            WHERE p2.id = p.reply_to_id
-                        ) r
-                    )
-                    ELSE NULL
-                END as reply_data
-            FROM posts p 
-            JOIN users_view u ON p.author_id = u.id 
-            WHERE p.topic_id = ? AND NOT p.is_deleted
-            ORDER BY p.created_at ASC 
+                pd.*
+            FROM post_data pd
+            ORDER BY pd.created_at ASC 
             LIMIT ? OFFSET ?
-        ", [isset($_SESSION['user']) ? $_SESSION['user']['id'] : null, $topicId, $limit, $offset]);
+        ";
 
+        error_log("Executing SQL: " . $sql);
+        $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+        $params = [$userId, $topicId, $limit, $offset];
+        error_log("Query params: " . json_encode($params));
+
+        $posts = $this->db->query($sql, $params);
+        error_log("Found posts: " . count($posts));
+        
         // Обработка данных ответа
         foreach ($posts as &$post) {
             if (!empty($post['reply_data'])) {
@@ -54,6 +83,12 @@ class PostService
                 $post['reply_to_content'] = $replyData['content'] ?? null;
                 $post['reply_to_username'] = $replyData['username'] ?? null;
             }
+            
+            // Убедимся, что reaction_count и has_user_reaction имеют правильные типы
+            $post['reaction_count'] = (int)($post['reaction_count'] ?? 0);
+            $post['has_user_reaction'] = (bool)($post['has_user_reaction'] ?? false);
+            
+            error_log("Post {$post['id']} reactions: count={$post['reaction_count']}, hasUserReaction={$post['has_user_reaction']}");
         }
         
         return $posts;
@@ -185,15 +220,17 @@ class PostService
         
         try {
             $this->db->getConnection()->beginTransaction();
+            error_log("Transaction started");
             
             // Проверяем существование поста
-            $post = $this->db->query("
-                SELECT p.*, t.is_closed 
-                FROM posts p 
-                JOIN topics t ON p.topic_id = t.id 
-                WHERE p.id = ? AND NOT p.is_deleted
-                FOR UPDATE
-            ", [$postId]);
+            $sql = "SELECT p.*, t.is_closed 
+                   FROM posts p 
+                   JOIN topics t ON p.topic_id = t.id 
+                   WHERE p.id = ? AND NOT p.is_deleted
+                   FOR UPDATE";
+            error_log("Executing SQL: " . $sql . " with params: [$postId]");
+            $post = $this->db->query($sql, [$postId]);
+            error_log("Post query result: " . json_encode($post));
 
             if (empty($post)) {
                 $this->db->getConnection()->rollBack();
@@ -215,42 +252,53 @@ class PostService
             }
 
             // Проверяем, есть ли уже реакция
-            $reaction = $this->db->query("
-                SELECT id FROM post_reactions 
-                WHERE post_id = ? AND user_id = ?
-                FOR UPDATE
-            ", [$postId, $userId]);
-
-            error_log("Existing reaction check result: " . json_encode($reaction));
+            $sql = "SELECT id FROM post_reactions 
+                   WHERE post_id = ? AND user_id = ?
+                   FOR UPDATE";
+            error_log("Executing SQL: " . $sql . " with params: [$postId, $userId]");
+            $reaction = $this->db->query($sql, [$postId, $userId]);
+            error_log("Reaction check result: " . json_encode($reaction));
 
             if (empty($reaction)) {
                 // Создаем реакцию
-                error_log("Attempting to create reaction");
-                $result = $this->db->execute("
-                    INSERT INTO post_reactions (post_id, user_id) 
-                    VALUES (?, ?)
-                ", [$postId, $userId]);
+                $sql = "INSERT INTO post_reactions (post_id, user_id) VALUES (?, ?)";
+                error_log("Executing SQL: " . $sql . " with params: [$postId, $userId]");
+                $result = $this->db->execute($sql, [$postId, $userId]);
                 error_log("Insert result: " . ($result ? 'true' : 'false'));
+                
+                if (!$result) {
+                    $this->db->getConnection()->rollBack();
+                    error_log("Failed to insert reaction");
+                    return [
+                        'success' => false,
+                        'error' => 'Не удалось добавить реакцию'
+                    ];
+                }
             } else {
                 // Удаляем реакцию
-                error_log("Attempting to delete reaction");
-                $result = $this->db->execute("
-                    DELETE FROM post_reactions 
-                    WHERE post_id = ? AND user_id = ?
-                ", [$postId, $userId]);
+                $sql = "DELETE FROM post_reactions WHERE post_id = ? AND user_id = ?";
+                error_log("Executing SQL: " . $sql . " with params: [$postId, $userId]");
+                $result = $this->db->execute($sql, [$postId, $userId]);
                 error_log("Delete result: " . ($result ? 'true' : 'false'));
+                
+                if (!$result) {
+                    $this->db->getConnection()->rollBack();
+                    error_log("Failed to delete reaction");
+                    return [
+                        'success' => false,
+                        'error' => 'Не удалось удалить реакцию'
+                    ];
+                }
             }
 
             // Получаем обновленное количество реакций
-            $reactionCount = $this->db->query("
-                SELECT COUNT(*) as count 
-                FROM post_reactions 
-                WHERE post_id = ?
-            ", [$postId])[0]['count'];
-
+            $sql = "SELECT COUNT(*) as count FROM post_reactions WHERE post_id = ?";
+            error_log("Executing SQL: " . $sql . " with params: [$postId]");
+            $reactionCount = $this->db->query($sql, [$postId])[0]['count'];
             error_log("Updated reaction count: $reactionCount");
 
             $this->db->getConnection()->commit();
+            error_log("Transaction committed");
             
             return [
                 'success' => true,
@@ -260,6 +308,7 @@ class PostService
         } catch (\Exception $e) {
             $this->db->getConnection()->rollBack();
             error_log("Error in toggleReaction: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
                 'error' => 'Ошибка при обработке реакции: ' . $e->getMessage()

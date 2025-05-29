@@ -99,7 +99,7 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
                                             <span class="ms-1"><?php echo (int)($post['reaction_count'] ?? 0); ?></span>
                                         </button>
                                     <?php else: ?>
-                                        <div class="d-flex align-items-center">
+                                        <div class="d-flex align-items-center non-button-display">
                                             <i class="bi bi-heart<?php echo ($post['reaction_count'] ?? 0) > 0 ? '-fill text-danger' : ''; ?>"></i>
                                             <span class="ms-1"><?php echo (int)($post['reaction_count'] ?? 0); ?></span>
                                         </div>
@@ -165,6 +165,125 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing reaction buttons...');
     
+    // Функция для обновления количества реакций для всех постов
+    function updateAllReactions() {
+        const posts = document.querySelectorAll('[data-post-id]');
+        console.log('Updating reactions for posts:', posts.length);
+        
+        posts.forEach(post => {
+            const postId = post.querySelector('.reaction-btn')?.dataset.postId;
+            if (!postId) {
+                console.log('No reaction button found for post:', post);
+                return;
+            }
+            
+            console.log('Fetching reactions for post:', postId);
+            fetch(`/posts/${postId}/reaction`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                console.log('GET Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('GET Response data for post', postId, ':', data);
+                if (data.success) {
+                    const button = post.querySelector('.reaction-btn');
+                    const icon = button?.querySelector('i');
+                    const countSpan = post.querySelector('.reaction-btn span, .reaction-count');
+                    const nonButtonDisplay = post.querySelector('.non-button-display');
+                    
+                    console.log('Updating UI elements:', {
+                        button: !!button,
+                        icon: !!icon,
+                        countSpan: !!countSpan,
+                        nonButtonDisplay: !!nonButtonDisplay,
+                        reactionCount: data.reaction_count,
+                        hasReaction: data.has_user_reaction
+                    });
+                    
+                    // Обновляем счетчик реакций
+                    if (countSpan) {
+                        countSpan.textContent = data.reaction_count;
+                    }
+                    
+                    // Обновляем состояние кнопки, если она есть
+                    if (button && icon) {
+                        button.dataset.hasReaction = data.has_user_reaction.toString();
+                        icon.className = `bi bi-heart${data.has_user_reaction ? '-fill text-danger' : ''}`;
+                    }
+                    
+                    // Обновляем отображение для неактивных элементов
+                    if (nonButtonDisplay && nonButtonDisplay.querySelector('i')) {
+                        const nonButtonIcon = nonButtonDisplay.querySelector('i');
+                        const nonButtonCount = nonButtonDisplay.querySelector('span');
+                        nonButtonIcon.className = `bi bi-heart${data.reaction_count > 0 ? '-fill text-danger' : ''}`;
+                        if (nonButtonCount) {
+                            nonButtonCount.textContent = data.reaction_count;
+                        }
+                    }
+                } else {
+                    console.error('Error in response:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating reactions for post', postId, ':', error);
+                // Пробуем еще раз через 1 секунду
+                setTimeout(() => {
+                    console.log('Retrying update for post', postId);
+                    updateReactionForPost(post);
+                }, 1000);
+            });
+        });
+    }
+    
+    // Функция для обновления реакции одного поста
+    function updateReactionForPost(post) {
+        const postId = post.querySelector('.reaction-btn')?.dataset.postId;
+        if (!postId) return;
+        
+        fetch(`/posts/${postId}/reaction`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const button = post.querySelector('.reaction-btn');
+                const icon = button?.querySelector('i');
+                const countSpan = post.querySelector('.reaction-btn span, .reaction-count');
+                
+                if (countSpan) {
+                    countSpan.textContent = data.reaction_count;
+                }
+                if (button && icon) {
+                    button.dataset.hasReaction = data.has_user_reaction.toString();
+                    icon.className = `bi bi-heart${data.has_user_reaction ? '-fill text-danger' : ''}`;
+                }
+            }
+        })
+        .catch(error => console.error('Error in retry:', error));
+    }
+    
+    // Обновляем реакции при загрузке страницы
+    console.log('Initial reactions update');
+    updateAllReactions();
+    
+    // Обновляем реакции каждые 10 секунд
+    setInterval(updateAllReactions, 10000);
+    
     // Обработка реакций
     const reactionButtons = document.querySelectorAll('.reaction-btn');
     console.log('Found reaction buttons:', reactionButtons.length);
@@ -208,6 +327,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.dataset.hasReaction = (!hasReaction).toString();
                     icon.className = `bi bi-heart${!hasReaction ? '-fill text-danger' : ''}`;
                     countSpan.textContent = data.reaction_count;
+                    
+                    // Обновляем все реакции после успешного изменения
+                    updateAllReactions();
                 } else {
                     alert(data.error || 'Произошла ошибка при обработке реакции');
                 }
