@@ -110,14 +110,39 @@ try {
             exit;
         }
 
+        // Проверяем маршруты для управления ответами
+        if (preg_match('#^/posts/(\d+)/edit$#', $path, $matches)) {
+            include __DIR__ . '/../Views/layout/header.php';
+            $post->showEditForm($matches[1]);
+            include __DIR__ . '/../Views/layout/footer.php';
+            exit;
+        }
+
+        if (preg_match('#^/posts/(\d+)/update$#', $path, $matches)) {
+            $post->update($matches[1]);
+            exit;
+        }
+
+        if (preg_match('#^/posts/(\d+)/delete$#', $path, $matches)) {
+            $post->delete($matches[1]);
+            exit;
+        }
+
+        if (preg_match('#^/posts/(\d+)/reaction$#', $path, $matches)) {
+            $post->toggleReaction($matches[1]);
+            exit;
+        }
+
         switch ($path) {
             case '/':
                 // Получаем последние темы для главной страницы
                 $topics = $db->query("
-                    SELECT t.*, u.username 
+                    SELECT t.*, u.username, COUNT(p.id) as post_count 
                     FROM topics t 
                     JOIN users u ON t.author_id = u.id 
-                    ORDER BY t.created_at DESC 
+                    LEFT JOIN posts p ON t.id = p.topic_id 
+                    GROUP BY t.id, u.username 
+                    ORDER BY t.updated_at DESC NULLS LAST, t.created_at DESC 
                     LIMIT 10
                 ");
                 

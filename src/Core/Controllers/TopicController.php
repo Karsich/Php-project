@@ -219,10 +219,12 @@ class TopicController
             exit;
         }
 
-        $newStatus = !$topic[0]['is_closed'];
+        $currentStatus = (bool)$topic[0]['is_closed'];
+        $newStatus = !$currentStatus;
+        
         $this->db->query(
-            "UPDATE topics SET is_closed = ? WHERE id = ?",
-            [$newStatus, $id]
+            "UPDATE topics SET is_closed = ?, updated_at = NOW() WHERE id = ?",
+            [$newStatus ? 't' : 'f', $id]
         );
 
         $_SESSION['flash'] = [

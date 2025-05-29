@@ -60,6 +60,7 @@ class PostController
 
         $content = $_POST['content'] ?? '';
         $topicId = $_POST['topic_id'] ?? '';
+        $replyToId = $_POST['reply_to_id'] ?? null;
         $authorId = $_SESSION['user']['id'];
 
         if (empty($content) || empty($topicId)) {
@@ -71,7 +72,7 @@ class PostController
             exit;
         }
 
-        $result = $this->postService->createPost($authorId, $topicId, $content);
+        $result = $this->postService->createPost($authorId, $topicId, $content, $replyToId);
         
         if (!$result['success']) {
             $_SESSION['flash'] = [
@@ -86,6 +87,122 @@ class PostController
         }
         
         header('Location: /topics/' . $topicId);
+        exit;
+    }
+
+    public function showEditForm($id)
+    {
+        if (!isset($_SESSION['user'])) {
+            $_SESSION['flash'] = [
+                'type' => 'warning',
+                'message' => 'Для редактирования ответа необходимо войти в систему'
+            ];
+            header('Location: /auth/login');
+            exit;
+        }
+
+        $result = $this->postService->getPost($id, $_SESSION['user']['id']);
+        
+        if (!$result['success']) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => $result['error']
+            ];
+            header('Location: /topics/' . $result['data']['topic_id']);
+            exit;
+        }
+
+        include __DIR__ . '/../Views/posts/edit.php';
+    }
+
+    public function update($id)
+    {
+        if (!isset($_SESSION['user'])) {
+            $_SESSION['flash'] = [
+                'type' => 'warning',
+                'message' => 'Для редактирования ответа необходимо войти в систему'
+            ];
+            header('Location: /auth/login');
+            exit;
+        }
+
+        $content = $_POST['content'] ?? '';
+        
+        if (empty($content)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'Содержание ответа не может быть пустым'
+            ];
+            header('Location: /posts/' . $id . '/edit');
+            exit;
+        }
+
+        $result = $this->postService->updatePost($id, $_SESSION['user']['id'], $content);
+        
+        if (!$result['success']) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => $result['error']
+            ];
+            header('Location: /posts/' . $id . '/edit');
+        } else {
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => $result['message']
+            ];
+            $post = $this->postService->getPost($id, $_SESSION['user']['id']);
+            header('Location: /topics/' . $post['data']['topic_id']);
+        }
+        exit;
+    }
+
+    public function delete($id)
+    {
+        if (!isset($_SESSION['user'])) {
+            $_SESSION['flash'] = [
+                'type' => 'warning',
+                'message' => 'Для удаления ответа необходимо войти в систему'
+            ];
+            header('Location: /auth/login');
+            exit;
+        }
+
+        $post = $this->postService->getPost($id, $_SESSION['user']['id']);
+        $topicId = $post['data']['topic_id'];
+        
+        $result = $this->postService->deletePost($id, $_SESSION['user']['id']);
+        
+        if (!$result['success']) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => $result['error']
+            ];
+        } else {
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => $result['message']
+            ];
+        }
+        
+        header('Location: /topics/' . $topicId);
+        exit;
+    }
+
+    public function toggleReaction($id)
+    {
+        if (!isset($_SESSION['user'])) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error' => 'Для добавления реакции необходимо войти в систему'
+            ]);
+            exit;
+        }
+
+        $result = $this->postService->toggleReaction($id, $_SESSION['user']['id']);
+        
+        header('Content-Type: application/json');
+        echo json_encode($result);
         exit;
     }
 } 

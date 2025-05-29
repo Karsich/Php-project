@@ -1,38 +1,49 @@
-<h1 class="mb-4">Последние темы</h1>
-
-<?php if (empty($topics)): ?>
-    <div class="alert alert-info">
-        Пока нет ни одной темы. Будьте первым, кто создаст тему!
+<?php if (isset($_SESSION['flash'])): ?>
+    <div class="alert alert-<?php echo $_SESSION['flash']['type']; ?> alert-dismissible fade show" role="alert">
+        <?php echo $_SESSION['flash']['message']; ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
-<?php else: ?>
-    <div class="row">
-        <?php foreach ($topics as $topic): ?>
-            <div class="col-md-6 mb-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <a href="/topics/<?php echo $topic['id']; ?>" class="text-decoration-none">
-                                <?php echo htmlspecialchars($topic['title']); ?>
-                            </a>
-                        </h5>
-                        <p class="card-text"><?php echo htmlspecialchars($topic['description']); ?></p>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">
-                                Автор: <?php echo htmlspecialchars($topic['username']); ?>
-                            </small>
-                            <small class="text-muted">
-                                <?php echo date('d.m.Y H:i', strtotime($topic['created_at'])); ?>
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
+    <?php unset($_SESSION['flash']); ?>
 <?php endif; ?>
 
-<?php if (isset($_SESSION['user'])): ?>
-    <div class="text-center mt-4">
-        <a href="/topics/create" class="btn btn-primary">Создать новую тему</a>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Темы форума</h1>
+        <?php if (isset($_SESSION['user'])): ?>
+            <a href="/topics/create" class="btn btn-primary">Создать тему</a>
+        <?php endif; ?>
     </div>
-<?php endif; ?> 
+
+    <?php if (empty($topics)): ?>
+        <div class="alert alert-info">
+            Пока нет ни одной темы. Будьте первым, кто создаст тему!
+        </div>
+    <?php else: ?>
+        <div class="list-group">
+            <?php foreach ($topics as $topic): ?>
+                <a href="/topics/<?php echo $topic['id']; ?>" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1"><?php echo htmlspecialchars($topic['title']); ?></h5>
+                            <p class="mb-1 text-truncate" style="max-width: 500px;">
+                                <?php echo htmlspecialchars($topic['description']); ?>
+                            </p>
+                            <small>
+                                Автор: <?php echo htmlspecialchars($topic['username']); ?> | 
+                                Последнее изменение: <?php echo date('d.m.Y H:i', strtotime($topic['updated_at'] ?? $topic['created_at'])); ?>
+                            </small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <?php if ($topic['is_closed']): ?>
+                                <span class="badge bg-danger me-2">Закрыта</span>
+                            <?php endif; ?>
+                            <span class="badge bg-primary rounded-pill">
+                                <?php echo $topic['post_count'] ?? 0; ?> ответов
+                            </span>
+                        </div>
+                    </div>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div> 
