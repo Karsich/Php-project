@@ -67,15 +67,16 @@ services:
 
   # PostgreSQL Database
   db:
-    image: postgres:13-alpine
+    image: postgres:14
+    environment:
+      POSTGRES_DB: forum
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./database/migrations:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_DB=forum
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=secret
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
   # Redis for Caching
   redis:

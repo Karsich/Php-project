@@ -471,3 +471,13 @@ composer.lock
 *.css.map
 *.sass.map
 *.scss.map
+
+/vendor/
+.env
+.idea/
+.vscode/
+/node_modules/
+/storage/*.key
+*.log
+.DS_Store
+Thumbs.db

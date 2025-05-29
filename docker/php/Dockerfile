@@ -1,39 +1,34 @@
-FROM php:8.2-fpm
+FROM php:8.1-apache
 
-# Установка системных зависимостей
+# Установка зависимостей
 RUN apt-get update && apt-get install -y \
     libpq-dev \
-    zip \
-    unzip \
-    git \
     && docker-php-ext-install pdo pdo_pgsql
 
-# Создание директории для логов
-RUN mkdir -p /var/log && \
-    touch /var/log/php_errors.log && \
-    chown www-data:www-data /var/log/php_errors.log
+# Включаем mod_rewrite для Apache
+RUN a2enmod rewrite
 
-# Копирование php.ini
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
+# Копируем конфигурацию Apache
+COPY docker/php/apache.conf /etc/apache2/sites-available/000-default.conf
 
-# Установка Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
+# Устанавливаем рабочую директорию
 WORKDIR /var/www/html
 
-# Копирование файлов проекта
+# Копируем composer.json и composer.lock
+COPY composer.json composer.lock ./
+
+# Устанавливаем Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Устанавливаем зависимости
+RUN composer install --no-scripts --no-autoloader
+
+# Копируем остальные файлы проекта
 COPY . .
 
-# Установка зависимостей через Composer
-RUN composer update --no-scripts \
-    && composer install --no-scripts --no-autoloader
-
-# Генерация автозагрузчика
+# Генерируем автозагрузчик
 RUN composer dump-autoload --optimize
 
-# Настройка прав доступа
-RUN chown -R www-data:www-data /var/www/html
-
-EXPOSE 9000
-
-CMD ["php-fpm"] 
+# Устанавливаем права на директории
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage 
