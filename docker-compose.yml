@@ -5,27 +5,18 @@ services:
   app:
     build:
       context: .
-      dockerfile: src/Core/Dockerfile
+      dockerfile: docker/php/Dockerfile
     volumes:
-      - .:/var/www/html
-    depends_on:
-      - db
-      - redis
-      - auth
+      - ./:/var/www/html
     environment:
       - DB_HOST=db
+      - DB_PORT=5432
       - DB_NAME=forum
       - DB_USER=postgres
-      - DB_PASS=secret
+      - DB_PASSWORD=secret
       - REDIS_HOST=redis
-      - APP_URL=http://localhost:8000
       - AUTH_SERVICE_URL=http://auth:8001
-      - SMTP_HOST=mailhog
-      - SMTP_PORT=1025
-      - SMTP_USERNAME=null
-      - SMTP_PASSWORD=null
-      - MAIL_FROM_ADDRESS=forum@example.com
-      - MAIL_FROM_NAME=Forum
+      - NOTIFICATION_SERVICE_URL=http://notification:8002
 
   # Auth Service
   auth:
@@ -46,35 +37,20 @@ services:
     depends_on:
       - db
 
-  # Frontend Application
-  frontend:
+  # Notification Service
+  notification:
     build:
-      context: ./src/Frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+      context: .
+      dockerfile: docker/notification/Dockerfile
     volumes:
-      - ./src/Frontend:/app
-      - /app/node_modules
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - REACT_APP_AUTH_URL=http://localhost:8001
-    depends_on:
-      - app
-      - auth
-
-  # Swagger UI
-  swagger-ui:
-    image: swaggerapi/swagger-ui
+      - ./src/Notification:/var/www/html
     ports:
-      - "8080:8080"
+      - "8002:8002"
     environment:
-      - SWAGGER_JSON=/swagger/swagger.yaml
-    volumes:
-      - ./src/Core/swagger.yaml:/swagger/swagger.yaml
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
     depends_on:
-      - app
-      - auth
+      - mailhog
 
   # Nginx Web Server  
   nginx:
@@ -82,16 +58,16 @@ services:
     ports:
       - "8000:80"
     volumes:
-      - ./src:/var/www/html
+      - ./:/var/www/html
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - php
+      - app
       - auth
       - db
 
   # PostgreSQL Database
   db:
-    image: postgres:14-alpine
+    image: postgres:13-alpine
     ports:
       - "5432:5432"
     environment:
