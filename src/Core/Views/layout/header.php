@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Форум</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .navbar { margin-bottom: 20px; }
+        .post-card { margin-bottom: 15px; }
+        .reply-card { margin-left: 30px; }
+        .reaction-btn { 
+            border: none; 
+            background: none; 
+            cursor: pointer; 
+            padding: 5px 10px;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.2s ease;
+            position: relative;
+            z-index: 1;
+        }
+        .reaction-btn:hover { 
+            opacity: 0.8;
+            transform: scale(1.1);
+        }
+        .reaction-btn i {
+            font-size: 1.2rem;
+            pointer-events: none;
+        }
+        .reaction-btn + span {
+            margin-left: 5px;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">

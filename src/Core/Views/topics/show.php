@@ -49,11 +49,7 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
             <?php else: ?>
                 <?php foreach ($posts as $post): ?>
                     <div class="mb-3 pb-3 border-bottom" id="post-<?php echo $post['id']; ?>">
-                        <?php if ($post['is_deleted']): ?>
-                            <div class="text-muted fst-italic">
-                                <i class="bi bi-trash"></i> Это сообщение было удалено
-                            </div>
-                        <?php else: ?>
+                        <?php if (!$post['is_deleted']): ?>
                             <?php if ($post['reply_to_id']): ?>
                                 <div class="mb-2 ps-3 border-start border-primary">
                                     <small class="text-muted">
@@ -95,15 +91,18 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
                             </div>
                             <div class="mt-2 d-flex align-items-center gap-3">
                                 <div class="d-flex align-items-center">
-                                    <span class="me-1"><?php echo (int)($post['reaction_count'] ?? 0); ?></span>
                                     <?php if (isset($_SESSION['user']) && $_SESSION['user']['id'] !== $post['author_id']): ?>
-                                        <button class="btn btn-sm p-0 reaction-btn" 
+                                        <button type="button" class="reaction-btn" 
                                                 data-post-id="<?php echo $post['id']; ?>"
                                                 data-has-reaction="<?php echo !empty($post['has_user_reaction']) ? 'true' : 'false'; ?>">
-                                            <i class="bi bi-heart<?php echo !empty($post['has_user_reaction']) ? '-fill text-danger' : ' text-secondary'; ?>"></i>
+                                            <i class="bi bi-heart<?php echo !empty($post['has_user_reaction']) ? '-fill text-danger' : ''; ?>"></i>
+                                            <span class="ms-1"><?php echo (int)($post['reaction_count'] ?? 0); ?></span>
                                         </button>
                                     <?php else: ?>
-                                        <i class="bi bi-heart<?php echo ($post['reaction_count'] ?? 0) > 0 ? '-fill text-danger' : ' text-secondary'; ?>"></i>
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-heart<?php echo ($post['reaction_count'] ?? 0) > 0 ? '-fill text-danger' : ''; ?>"></i>
+                                            <span class="ms-1"><?php echo (int)($post['reaction_count'] ?? 0); ?></span>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
 
@@ -114,6 +113,10 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
                                         <i class="bi bi-reply"></i> Ответить
                                     </button>
                                 <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-muted fst-italic">
+                                <i class="bi bi-trash"></i> Это сообщение было удалено
                             </div>
                         <?php endif; ?>
                     </div>
@@ -160,29 +163,58 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing reaction buttons...');
+    
     // Обработка реакций
-    document.querySelectorAll('.reaction-btn').forEach(button => {
-        button.addEventListener('click', function() {
+    const reactionButtons = document.querySelectorAll('.reaction-btn');
+    console.log('Found reaction buttons:', reactionButtons.length);
+    
+    reactionButtons.forEach(button => {
+        console.log('Adding click handler to button:', button.dataset.postId);
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const postId = this.dataset.postId;
             const hasReaction = this.dataset.hasReaction === 'true';
             const icon = this.querySelector('i');
-            const countSpan = this.querySelector('.reaction-count');
+            const countSpan = this.querySelector('span');
+
+            console.log('Reaction button clicked:', {
+                postId,
+                hasReaction,
+                icon: icon.className,
+                currentCount: countSpan.textContent
+            });
 
             fetch(`/posts/${postId}/reaction`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.success) {
                     this.dataset.hasReaction = (!hasReaction).toString();
-                    icon.className = `bi bi-heart${!hasReaction ? '-fill' : ''}`;
+                    icon.className = `bi bi-heart${!hasReaction ? '-fill text-danger' : ''}`;
                     countSpan.textContent = data.reaction_count;
                 } else {
-                    alert(data.error);
+                    alert(data.error || 'Произошла ошибка при обработке реакции');
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Произошла ошибка при обработке реакции');
             });
         });
     });

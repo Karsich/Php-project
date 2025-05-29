@@ -60,7 +60,7 @@ class PostController
 
         $content = $_POST['content'] ?? '';
         $topicId = $_POST['topic_id'] ?? '';
-        $replyToId = $_POST['reply_to_id'] ?? null;
+        $replyToId = !empty($_POST['reply_to_id']) ? (int)$_POST['reply_to_id'] : null;
         $authorId = $_SESSION['user']['id'];
 
         if (empty($content) || empty($topicId)) {
@@ -190,8 +190,11 @@ class PostController
 
     public function toggleReaction($id)
     {
+        error_log("toggleReaction controller called with id: $id");
+        error_log("Session data: " . json_encode($_SESSION));
+        
         if (!isset($_SESSION['user'])) {
-            header('Content-Type: application/json');
+            error_log("User not authenticated");
             echo json_encode([
                 'success' => false,
                 'error' => 'Для добавления реакции необходимо войти в систему'
@@ -199,9 +202,10 @@ class PostController
             exit;
         }
 
+        error_log("Calling PostService toggleReaction");
         $result = $this->postService->toggleReaction($id, $_SESSION['user']['id']);
+        error_log("PostService result: " . json_encode($result));
         
-        header('Content-Type: application/json');
         echo json_encode($result);
         exit;
     }

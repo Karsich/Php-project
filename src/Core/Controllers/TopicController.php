@@ -98,7 +98,7 @@ class TopicController
         $topic = $this->db->query("
             SELECT t.*, u.username 
             FROM topics t 
-            JOIN users u ON t.author_id = u.id 
+            JOIN users_view u ON t.author_id = u.id 
             WHERE t.id = ?
         ", [$id]);
 
@@ -111,7 +111,7 @@ class TopicController
         $posts = $this->db->query("
             SELECT p.*, u.username 
             FROM posts p 
-            JOIN users u ON p.author_id = u.id 
+            JOIN users_view u ON p.author_id = u.id 
             WHERE p.topic_id = ? 
             ORDER BY p.created_at ASC
         ", [$id]);

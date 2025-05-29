@@ -1,7 +1,6 @@
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    login VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     register_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -43,16 +42,15 @@ CREATE TABLE posts (
     deleted_at TIMESTAMP,
     topic_id INTEGER REFERENCES topics(id),
     author_id INTEGER REFERENCES users(id),
-    parent_post_id INTEGER REFERENCES posts(id),
+    reply_to_id INTEGER REFERENCES posts(id),
     is_deleted BOOLEAN DEFAULT FALSE
 );
 
-CREATE TABLE reactions (
+CREATE TABLE post_reactions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
     post_id INTEGER REFERENCES posts(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    reaction_type VARCHAR(20) NOT NULL,
     UNIQUE (user_id, post_id)
 );
 
@@ -89,52 +87,55 @@ CREATE TRIGGER update_posts_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TABLE categories (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    parent_id INT,
+    id SERIAL PRIMARY KEY,
+    parent_id INTEGER REFERENCES categories(id),
     name VARCHAR(100) NOT NULL,
-    is_hidden BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (parent_id) REFERENCES categories(id)
+    is_hidden BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE post_categories (
-    post_id INT,
-    category_id INT,
-    PRIMARY KEY (post_id, category_id),
-    FOREIGN KEY (post_id) REFERENCES posts(id),
-    FOREIGN KEY (category_id) REFERENCES categories(id)
+    post_id INTEGER REFERENCES posts(id),
+    category_id INTEGER REFERENCES categories(id),
+    PRIMARY KEY (post_id, category_id)
 );
 
 CREATE TABLE comments (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     content TEXT NOT NULL,
-    create_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    edit_date DATETIME ON UPDATE CURRENT_TIMESTAMP,
-    delete_date DATETIME,
-    user_id INT,
-    post_id INT,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (post_id) REFERENCES posts(id)
+    create_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    edit_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    delete_date TIMESTAMP,
+    user_id INTEGER REFERENCES users(id),
+    post_id INTEGER REFERENCES posts(id)
 );
 
 CREATE TABLE likes (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT,
-    post_id INT,
-    create_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (post_id) REFERENCES posts(id),
-    UNIQUE KEY unique_like (user_id, post_id)
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    post_id INTEGER REFERENCES posts(id),
+    create_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, post_id)
 );
 
 CREATE TABLE tags (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE
 );
 
 CREATE TABLE post_tags (
-    post_id INT,
-    tag_id INT,
-    PRIMARY KEY (post_id, tag_id),
-    FOREIGN KEY (post_id) REFERENCES posts(id),
-    FOREIGN KEY (tag_id) REFERENCES tags(id)
-); 
+    post_id INTEGER REFERENCES posts(id),
+    tag_id INTEGER REFERENCES tags(id),
+    PRIMARY KEY (post_id, tag_id)
+);
+
+-- Создаем представление для пользователей
+CREATE OR REPLACE VIEW users_view AS
+SELECT 
+    id,
+    username,
+    email,
+    register_date,
+    is_banned,
+    avatar,
+    update_date
+FROM users; 

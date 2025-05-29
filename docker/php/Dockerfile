@@ -8,6 +8,14 @@ RUN apt-get update && apt-get install -y \
     git \
     && docker-php-ext-install pdo pdo_pgsql
 
+# Создание директории для логов
+RUN mkdir -p /var/log && \
+    touch /var/log/php_errors.log && \
+    chown www-data:www-data /var/log/php_errors.log
+
+# Копирование php.ini
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
+
 # Установка Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

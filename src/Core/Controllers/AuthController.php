@@ -68,14 +68,14 @@ class AuthController
         }
 
         $existingUser = $this->db->query(
-            "SELECT * FROM users WHERE email = ?",
-            [$email]
+            "SELECT * FROM users WHERE email = ? OR username = ?",
+            [$email, $username]
         );
 
         if (!empty($existingUser)) {
             $_SESSION['flash'] = [
                 'type' => 'danger',
-                'message' => 'Пользователь с таким email уже существует'
+                'message' => 'Пользователь с таким email или именем пользователя уже существует'
             ];
             header('Location: /auth/register');
             exit;

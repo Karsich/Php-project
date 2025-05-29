@@ -129,8 +129,16 @@ try {
         }
 
         if (preg_match('#^/posts/(\d+)/reaction$#', $path, $matches)) {
+            header('Content-Type: application/json');
             $post->toggleReaction($matches[1]);
             exit;
+        }
+
+        if ($path === '/posts/create') {
+            if ($method === 'POST') {
+                $post->create();
+                exit;
+            }
         }
 
         switch ($path) {
@@ -139,7 +147,7 @@ try {
                 $topics = $db->query("
                     SELECT t.*, u.username, COUNT(p.id) as post_count 
                     FROM topics t 
-                    JOIN users u ON t.author_id = u.id 
+                    JOIN users_view u ON t.author_id = u.id 
                     LEFT JOIN posts p ON t.id = p.topic_id 
                     GROUP BY t.id, u.username 
                     ORDER BY t.updated_at DESC NULLS LAST, t.created_at DESC 
@@ -182,12 +190,6 @@ try {
                     include __DIR__ . '/../Views/layout/footer.php';
                 } else if ($method === 'POST') {
                     $topic->create();
-                }
-                break;
-
-            case '/posts/create':
-                if ($method === 'POST') {
-                    $post->create();
                 }
                 break;
 
