@@ -28,19 +28,31 @@ class AuthController
         $email = $_POST['email'] ?? '';
         $password = $_POST['password'] ?? '';
 
+        error_log("Попытка входа для email: " . $email);
+
         $user = $this->db->query(
             "SELECT * FROM users WHERE email = ?",
             [$email]
         );
 
-        if (!empty($user) && password_verify($password, $user[0]['password'])) {
-            $_SESSION['user'] = $user[0];
-            $_SESSION['flash'] = [
-                'type' => 'success',
-                'message' => 'Добро пожаловать!'
-            ];
-            header('Location: /');
-            exit;
+        error_log("Найден пользователь: " . json_encode($user));
+
+        if (!empty($user)) {
+            error_log("Проверка пароля для пользователя: " . $user[0]['username']);
+            if (password_verify($password, $user[0]['password'])) {
+                error_log("Пароль верный, создаем сессию");
+                $_SESSION['user'] = $user[0];
+                $_SESSION['flash'] = [
+                    'type' => 'success',
+                    'message' => 'Добро пожаловать!'
+                ];
+                header('Location: /');
+                exit;
+            } else {
+                error_log("Неверный пароль");
+            }
+        } else {
+            error_log("Пользователь не найден");
         }
 
         $_SESSION['flash'] = [

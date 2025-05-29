@@ -3,6 +3,7 @@
 namespace App\Core\Controllers;
 
 use App\Core\Services\PostService;
+use App\Core\Services\AuthorizationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Core\Database\Database;
@@ -11,11 +12,13 @@ class PostController
 {
     private $postService;
     private $db;
+    private $authService;
 
     public function __construct(PostService $postService = null)
     {
         $this->db = Database::getInstance();
         $this->postService = $postService ?? new PostService();
+        $this->authService = new AuthorizationService();
     }
 
     public function getPosts(Request $request, Response $response): Response
@@ -101,6 +104,17 @@ class PostController
             exit;
         }
 
+        // Проверяем права на редактирование
+        if (!$this->authService->canManagePost($_SESSION['user']['id'], $id)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'У вас нет прав для редактирования этого ответа'
+            ];
+            $post = $this->postService->getPost($id, $_SESSION['user']['id']);
+            header('Location: /topics/' . $post['data']['topic_id']);
+            exit;
+        }
+
         $result = $this->postService->getPost($id, $_SESSION['user']['id']);
         
         if (!$result['success']) {
@@ -123,6 +137,17 @@ class PostController
                 'message' => 'Для редактирования ответа необходимо войти в систему'
             ];
             header('Location: /auth/login');
+            exit;
+        }
+
+        // Проверяем права на редактирование
+        if (!$this->authService->canManagePost($_SESSION['user']['id'], $id)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'У вас нет прав для редактирования этого ответа'
+            ];
+            $post = $this->postService->getPost($id, $_SESSION['user']['id']);
+            header('Location: /topics/' . $post['data']['topic_id']);
             exit;
         }
 
@@ -164,6 +189,17 @@ class PostController
                 'message' => 'Для удаления ответа необходимо войти в систему'
             ];
             header('Location: /auth/login');
+            exit;
+        }
+
+        // Проверяем права на удаление
+        if (!$this->authService->canManagePost($_SESSION['user']['id'], $id)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'У вас нет прав для удаления этого ответа'
+            ];
+            $post = $this->postService->getPost($id, $_SESSION['user']['id']);
+            header('Location: /topics/' . $post['data']['topic_id']);
             exit;
         }
 

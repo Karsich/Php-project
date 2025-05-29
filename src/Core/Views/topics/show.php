@@ -1,6 +1,8 @@
 <?php
 $title = htmlspecialchars($topic[0]['title']);
 $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['author_id'];
+$isAdmin = isset($_SESSION['user']) && $authService->isAdmin($_SESSION['user']['id']);
+$canManageTopic = $isAuthor || $isAdmin;
 ?>
 
 <div class="container">
@@ -19,7 +21,7 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
                     <?php endif; ?>
                 </div>
             </div>
-            <?php if ($isAuthor): ?>
+            <?php if ($canManageTopic): ?>
             <div class="btn-group">
                 <a href="/topics/<?php echo $topic[0]['id']; ?>/edit" class="btn btn-outline-primary">Редактировать</a>
                 <form action="/topics/<?php echo $topic[0]['id']; ?>/toggle" method="POST" class="d-inline">
@@ -74,9 +76,9 @@ $isAuthor = isset($_SESSION['user']) && $_SESSION['user']['id'] === $topic[0]['a
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <?php if (isset($_SESSION['user']) && ($_SESSION['user']['id'] === $post['author_id'] || $isAuthor)): ?>
+                                <?php if (isset($_SESSION['user']) && ($isAdmin || $_SESSION['user']['id'] === $post['author_id'])): ?>
                                 <div class="btn-group">
-                                    <?php if ($_SESSION['user']['id'] === $post['author_id']): ?>
+                                    <?php if ($isAdmin || $_SESSION['user']['id'] === $post['author_id']): ?>
                                         <a href="/posts/<?php echo $post['id']; ?>/edit" class="btn btn-sm btn-outline-primary">Редактировать</a>
                                     <?php endif; ?>
                                     <form action="/posts/<?php echo $post['id']; ?>/delete" method="POST" class="d-inline" 

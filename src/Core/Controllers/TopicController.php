@@ -3,14 +3,17 @@
 namespace App\Core\Controllers;
 
 use App\Core\Database\Database;
+use App\Core\Services\AuthorizationService;
 
 class TopicController
 {
     private $db;
+    private $authService;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
+        $this->authService = new AuthorizationService();
     }
 
     public function getTopics(Request $request, Response $response): Response
@@ -139,6 +142,7 @@ class TopicController
             ORDER BY p.created_at ASC
         ", [$currentUserId, $id]);
 
+        $authService = $this->authService;
         include __DIR__ . '/../Views/topics/show.php';
     }
 
@@ -153,16 +157,23 @@ class TopicController
             exit;
         }
 
-        $topic = $this->db->query("
-            SELECT * FROM topics WHERE id = ? AND author_id = ?
-        ", [$id, $_SESSION['user']['id']]);
+        if (!$this->authService->canManageTopic($_SESSION['user']['id'], $id)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'У вас нет прав для редактирования этой темы'
+            ];
+            header('Location: /topics/' . $id);
+            exit;
+        }
+
+        $topic = $this->db->query("SELECT * FROM topics WHERE id = ?", [$id]);
 
         if (empty($topic)) {
             $_SESSION['flash'] = [
                 'type' => 'danger',
-                'message' => 'Тема не найдена или у вас нет прав для её редактирования'
+                'message' => 'Тема не найдена'
             ];
-            header('Location: /topics/' . $id);
+            header('Location: /');
             exit;
         }
 
@@ -180,14 +191,10 @@ class TopicController
             exit;
         }
 
-        $topic = $this->db->query("
-            SELECT * FROM topics WHERE id = ? AND author_id = ?
-        ", [$id, $_SESSION['user']['id']]);
-
-        if (empty($topic)) {
+        if (!$this->authService->canManageTopic($_SESSION['user']['id'], $id)) {
             $_SESSION['flash'] = [
                 'type' => 'danger',
-                'message' => 'Тема не найдена или у вас нет прав для её редактирования'
+                'message' => 'У вас нет прав для редактирования этой темы'
             ];
             header('Location: /topics/' . $id);
             exit;
@@ -229,14 +236,21 @@ class TopicController
             exit;
         }
 
-        $topic = $this->db->query("
-            SELECT * FROM topics WHERE id = ? AND author_id = ?
-        ", [$id, $_SESSION['user']['id']]);
+        if (!$this->authService->canManageTopic($_SESSION['user']['id'], $id)) {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'У вас нет прав для управления этой темой'
+            ];
+            header('Location: /topics/' . $id);
+            exit;
+        }
+
+        $topic = $this->db->query("SELECT * FROM topics WHERE id = ?", [$id]);
 
         if (empty($topic)) {
             $_SESSION['flash'] = [
                 'type' => 'danger',
-                'message' => 'Тема не найдена или у вас нет прав для её управления'
+                'message' => 'Тема не найдена'
             ];
             header('Location: /topics/' . $id);
             exit;
@@ -269,26 +283,50 @@ class TopicController
             exit;
         }
 
-        $topic = $this->db->query("
-            SELECT * FROM topics WHERE id = ? AND author_id = ?
-        ", [$id, $_SESSION['user']['id']]);
-
-        if (empty($topic)) {
+        if (!$this->authService->canManageTopic($_SESSION['user']['id'], $id)) {
             $_SESSION['flash'] = [
                 'type' => 'danger',
-                'message' => 'Тема не найдена или у вас нет прав для её удаления'
+                'message' => 'У вас нет прав для удаления этой темы'
             ];
             header('Location: /topics/' . $id);
             exit;
         }
 
-        $this->db->query("DELETE FROM topics WHERE id = ?", [$id]);
+        try {
+            // Начинаем транзакцию
+            $this->db->beginTransaction();
 
-        $_SESSION['flash'] = [
-            'type' => 'success',
-            'message' => 'Тема успешно удалена'
-        ];
-        header('Location: /');
+            // Сначала удаляем все реакции к постам этой темы
+            $this->db->query("
+                DELETE FROM post_reactions 
+                WHERE post_id IN (SELECT id FROM posts WHERE topic_id = ?)
+            ", [$id]);
+
+            // Затем удаляем все посты темы
+            $this->db->query("DELETE FROM posts WHERE topic_id = ?", [$id]);
+
+            // И наконец удаляем саму тему
+            $this->db->query("DELETE FROM topics WHERE id = ?", [$id]);
+
+            // Подтверждаем транзакцию
+            $this->db->commit();
+
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => 'Тема успешно удалена'
+            ];
+            header('Location: /');
+        } catch (\Exception $e) {
+            // В случае ошибки откатываем транзакцию
+            $this->db->rollBack();
+            
+            error_log("Ошибка при удалении темы: " . $e->getMessage());
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => 'Произошла ошибка при удалении темы'
+            ];
+            header('Location: /topics/' . $id);
+        }
         exit;
     }
 } 

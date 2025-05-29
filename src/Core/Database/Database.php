@@ -155,4 +155,19 @@ class Database {
     public function lastInsertId(string $sequence = null): string {
         return $this->connection->lastInsertId($sequence);
     }
+
+    public function beginTransaction()
+    {
+        return $this->connection->beginTransaction();
+    }
+
+    public function commit()
+    {
+        return $this->connection->commit();
+    }
+
+    public function rollBack()
+    {
+        return $this->connection->rollBack();
+    }
 } 
